@@ -112,9 +112,30 @@ pub fn TilePane(
                 let success = layout.write().insert_tile_with_split(&dragged_tile, &tile_id_ondrop, zone);
 
                 if success {
-                    web_sys::console::log_1(&format!("Successfully dropped {} on {} at {:?}", dragged_tile, tile_id_ondrop, zone).into());
+                    #[cfg(target_arch = "wasm32")]
+                    web_sys::console::log_1(
+                        &format!(
+                            "Successfully dropped {} on {} at {:?}",
+                            dragged_tile, tile_id_ondrop, zone
+                        )
+                        .into(),
+                    );
+                    #[cfg(not(target_arch = "wasm32"))]
+                    eprintln!(
+                        "Successfully dropped {} on {} at {:?}",
+                        dragged_tile, tile_id_ondrop, zone
+                    );
                 } else {
-                    web_sys::console::log_1(&format!("Failed to drop {} on {} at {:?}", dragged_tile, tile_id_ondrop, zone).into());
+                    #[cfg(target_arch = "wasm32")]
+                    web_sys::console::log_1(
+                        &format!("Failed to drop {} on {} at {:?}", dragged_tile, tile_id_ondrop, zone)
+                            .into(),
+                    );
+                    #[cfg(not(target_arch = "wasm32"))]
+                    eprintln!(
+                        "Failed to drop {} on {} at {:?}",
+                        dragged_tile, tile_id_ondrop, zone
+                    );
                 }
 
                 // Clear drag state
