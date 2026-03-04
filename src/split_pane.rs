@@ -1,6 +1,5 @@
 use crate::types::SplitDirection;
 use dioxus::prelude::*;
-use wasm_bindgen::JsCast;
 
 /// A resizable split pane component
 ///
@@ -20,7 +19,8 @@ pub fn SplitPane(
     let mut split_pos = use_signal(|| initial_size);
     let mut is_dragging = use_signal(|| false);
     let mut is_hovering = use_signal(|| false);
-    let mut container_ref = use_signal(|| None::<web_sys::HtmlElement>);
+    // Cross-platform container rect: (left, top, width, height)
+    let mut container_rect = use_signal(|| None::<(f64, f64, f64, f64)>);
 
     // Mouse move handler for dragging
     let handle_mouse_move = move |evt: Event<MouseData>| {
@@ -28,21 +28,19 @@ pub fn SplitPane(
             return;
         }
 
-        if let Some(container) = container_ref() {
-            let rect = container.get_bounding_client_rect();
+        if let Some((left, top, width, height)) = container_rect() {
+            if width <= 0.0 || height <= 0.0 {
+                return;
+            }
 
             let new_pos = match direction {
                 SplitDirection::Horizontal => {
-                    let x = evt.page_coordinates().x as f64;
-                    let container_x = rect.left();
-                    let container_width = rect.width();
-                    ((x - container_x) / container_width * 100.0).clamp(min_size, max_size)
+                    let x = evt.client_coordinates().x as f64;
+                    ((x - left) / width * 100.0).clamp(min_size, max_size)
                 }
                 SplitDirection::Vertical => {
-                    let y = evt.page_coordinates().y as f64;
-                    let container_y = rect.top();
-                    let container_height = rect.height();
-                    ((y - container_y) / container_height * 100.0).clamp(min_size, max_size)
+                    let y = evt.client_coordinates().y as f64;
+                    ((y - top) / height * 100.0).clamp(min_size, max_size)
                 }
             };
 
@@ -70,13 +68,15 @@ pub fn SplitPane(
     rsx! {
         div {
             class: "split-pane",
-                // style: "margin: 0.5rem;",
             onmounted: move |evt| {
                 spawn(async move {
-                    if let Some(element) = evt.data().downcast::<web_sys::Element>() {
-                        if let Ok(html_element) = element.clone().dyn_into::<web_sys::HtmlElement>() {
-                            container_ref.set(Some(html_element));
-                        }
+                    if let Ok(rect) = evt.data().get_client_rect().await {
+                        container_rect.set(Some((
+                            rect.min_x(),
+                            rect.min_y(),
+                            rect.width(),
+                            rect.height(),
+                        )));
                     }
                 });
             },
@@ -116,7 +116,8 @@ pub fn SplitPane(
             // Gap before divider (also draggable, triggers hover)
             div {
                 class: "split-gap-before",
-                onmousedown: move |_evt| {
+                onmousedown: move |evt| {
+                    evt.prevent_default();
                     is_dragging.set(true);
                 },
                 onmouseenter: move |_evt| {
@@ -134,7 +135,8 @@ pub fn SplitPane(
             // Divider (drag handle)
             div {
                 class: "split-divider",
-                onmousedown: move |_evt| {
+                onmousedown: move |evt| {
+                    evt.prevent_default();
                     is_dragging.set(true);
                 },
                 onmouseenter: move |_evt| {
@@ -192,7 +194,8 @@ pub fn SplitPane(
             // Gap after divider (also draggable, triggers hover)
             div {
                 class: "split-gap-after",
-                onmousedown: move |_evt| {
+                onmousedown: move |evt| {
+                    evt.prevent_default();
                     is_dragging.set(true);
                 },
                 onmouseenter: move |_evt| {
